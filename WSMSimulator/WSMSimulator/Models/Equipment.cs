@@ -10,7 +10,6 @@ namespace WSMSimulator.Models
         [BsonRepresentation(MongoDB.Bson.BsonType.ObjectId)]
         public string? EquipmentId { get; set; }
 
-        [Required(AllowEmptyStrings = false)]
         public string? Type { get; set; }
 
     }
