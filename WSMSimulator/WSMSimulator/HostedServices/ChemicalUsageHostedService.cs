@@ -17,6 +17,7 @@ namespace WSMSimulator.HostedServices
         private readonly IMqttClient _mqttClient;
         private readonly MqttClientOptions _mqttClientOptions;
         private readonly IMongoCollection<Chemical> _chemicalCollection;
+        private readonly IMongoCollection<Equipment> _equipmentCollection;
         private readonly Random _random;
         private Timer? _timer = null;
 
@@ -32,6 +33,8 @@ namespace WSMSimulator.HostedServices
                 settings.Value.DatabaseName);
             _chemicalCollection = mongoDatabase.GetCollection<Chemical>(
                 settings.Value.ChemicalCollection);
+            _equipmentCollection = mongoDatabase.GetCollection<Equipment>(
+                settings.Value.EquipmentCollection);
 
             // RNG
             _random = new Random();
@@ -102,7 +105,7 @@ namespace WSMSimulator.HostedServices
         {
             try
             {
-                SensorReadingDTO? data = GetRandomSensorData();
+                ChemicalUsageReadingDTO? data = GetRandomSensorData();
 
                 if (data != null)
                 {
@@ -123,18 +126,23 @@ namespace WSMSimulator.HostedServices
             }
         }
 
-        private SensorReadingDTO? GetRandomSensorData()
+        private ChemicalUsageReadingDTO? GetRandomSensorData()
         {
             try
             {
                 // Query Chemical collection to get a random ChemicalId
-                Chemical chemical = GetRandomChemicalAsync().Result;
+                Chemical? chemical = GetRandomChemicalAsync().Result;
+                Equipment? equipment = GetRandomPumpAsync().Result;
+
+                if (chemical == null || equipment == null)
+                    return null;
 
                 // Generate random sensor data
                 SensorData sensorData = GetRandomSensorData(0, Math.Min(5, chemical.Quantity));
-                SensorReadingDTO sensorReading = new SensorReadingDTO()
+                ChemicalUsageReadingDTO sensorReading = new ChemicalUsageReadingDTO()
                 {
-                    Id = chemical.ChemicalId,
+                    ChemicalId = chemical.ChemicalId,
+                    EquipmentId = equipment.EquipmentId,
                     Data = sensorData
                 };
                 return sensorReading;
@@ -146,13 +154,23 @@ namespace WSMSimulator.HostedServices
 
         }
 
-        public async Task<Chemical> GetRandomChemicalAsync()
+        public async Task<Chemical?> GetRandomChemicalAsync()
         {
             // https://stackoverflow.com/questions/46616574/mongodb-random-results-in-c-sharp-linq
             var sample = await _chemicalCollection.AsQueryable()
                 .Sample(1)
                 .FirstOrDefaultAsync();
-            return sample is not null ? sample : new Chemical();
+            return sample is not null ? sample : null;
+        }
+
+        public async Task<Equipment?> GetRandomPumpAsync()
+        {
+            // https://stackoverflow.com/questions/46616574/mongodb-random-results-in-c-sharp-linq
+            var sample = await _equipmentCollection.AsQueryable()
+                .Where(x => x.Type == "Pump")
+                .Sample(1)
+                .FirstOrDefaultAsync();
+            return sample is not null ? sample : null;
         }
 
         public SensorData GetRandomSensorData(double minVal, double maxVal)

@@ -1,0 +1,6 @@
+
+*.dll
+*.pdb
+*.v2
+*.sentinel
+*.cache
