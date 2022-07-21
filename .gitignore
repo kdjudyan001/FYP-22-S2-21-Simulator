@@ -4,3 +4,12 @@
 *.v2
 *.sentinel
 *.cache
+WSMSimulator/.vs/WSMSimulator/DesignTimeBuild/.dtbcache.v2
+WSMSimulator/WSMSimulator/bin/Debug/net6.0/WSMSimulator.dll
+WSMSimulator/WSMSimulator/bin/Debug/net6.0/WSMSimulator.pdb
+WSMSimulator/WSMSimulator/obj/Debug/net6.0/ref/WSMSimulator.dll
+WSMSimulator/WSMSimulator/obj/Debug/net6.0/refint/WSMSimulator.dll
+WSMSimulator/WSMSimulator/obj/Debug/net6.0/WSMSimulator.csproj.CoreCompileInputs.cache
+WSMSimulator/WSMSimulator/obj/Debug/net6.0/WSMSimulator.dll
+WSMSimulator/WSMSimulator/obj/Debug/net6.0/WSMSimulator.pdb
+WSMSimulator/WSMSimulator/obj/staticwebassets.pack.sentinel

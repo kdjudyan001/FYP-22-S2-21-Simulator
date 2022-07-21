@@ -18,6 +18,8 @@ builder.Services.AddHostedService<ChemicalUsageHostedService>();
 //builder.Services.AddEndpointsApiExplorer();
 //builder.Services.AddSwaggerGen();
 
+builder.WebHost.UseUrls(builder.Configuration.GetValue<string>("Urls").Split(","));
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
