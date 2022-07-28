@@ -5,6 +5,7 @@ using MQTTnet;
 using MQTTnet.Client;
 using Newtonsoft.Json;
 using WSMSimulator.Models;
+using WSMSimulator.Settings;
 
 namespace WSMSimulator.HostedServices
 {
@@ -14,17 +15,19 @@ namespace WSMSimulator.HostedServices
 
         private readonly ILogger<WaterUsageHostedService> _logger;
         private readonly IConfiguration _config;
+        private readonly IOptions<WaterUsageSettings> _simulation;
         private readonly IMongoCollection<User> _userCollection;
         private readonly GaussianRandom _random;
         private readonly IMqttClient _mqttClient;
         private Timer? _timer = null;
         private MqttClientOptions _mqttClientOptions;
 
-        public WaterUsageHostedService(ILogger<WaterUsageHostedService> logger,
-            IConfiguration config, IOptions<MongoDBSettings> settings)
+        public WaterUsageHostedService(ILogger<WaterUsageHostedService> logger, IConfiguration config, 
+            IOptions<MongoDbSettings> settings, IOptions<WaterUsageSettings> simulation)
         {
             _logger = logger;
             _config = config;
+            _simulation = simulation;
 
             var mongoClient = new MongoClient(
                 settings.Value.ConnectionString);
@@ -54,11 +57,11 @@ namespace WSMSimulator.HostedServices
             // Start timer
             if (_timer == null)
             {
-                _timer = new Timer(Publish, null, TimeSpan.Zero, TimeSpan.FromMinutes(15));
+                _timer = new Timer(Publish, null, TimeSpan.FromMinutes(_simulation.Value.DueTime), TimeSpan.FromMinutes(_simulation.Value.Period));
             }
             else
             {
-                _timer?.Change(TimeSpan.Zero, TimeSpan.FromMinutes(15));
+                _timer?.Change(TimeSpan.FromMinutes(_simulation.Value.DueTime), TimeSpan.FromMinutes(_simulation.Value.Period));
             }
             return Task.CompletedTask;
         }
@@ -141,7 +144,7 @@ namespace WSMSimulator.HostedServices
                         Data = new SensorData()
                         {
                             Timestamp = DateTime.UtcNow,
-                            Value = _random.NextDouble(10, 10, 0, double.MaxValue)
+                            Value = _random.NextDouble(_simulation.Value.Mean, _simulation.Value.StdDev, _simulation.Value.Min, _simulation.Value.Max)
                         }
                     };
                     return sensorReading;

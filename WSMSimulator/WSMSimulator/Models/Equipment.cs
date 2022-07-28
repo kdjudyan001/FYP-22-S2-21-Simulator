@@ -10,6 +10,7 @@ namespace WSMSimulator.Models
         public string? EquipmentId { get; set; }
 
         public string? Type { get; set; }
+        public bool IsActive { get; set; } = true;
 
     }
 }
