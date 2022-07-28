@@ -140,16 +140,12 @@ namespace WSMSimulator.HostedServices
                 if (chemical == null || equipment == null)
                     return null;
 
-                _logger.LogInformation($"{chemical.ChemicalId} - {chemical.Quantity}");
-
                 // Generate random sensor data
                 SensorData sensorData = new SensorData()
                 {
                     Timestamp = DateTime.UtcNow,
                     Value = _random.NextDouble(_simulation.Value.Mean, _simulation.Value.StdDev, _simulation.Value.Min, chemical.Quantity)
                 };
-
-                _logger.LogInformation($"RANDOM SENSOR DATA {sensorData.Value}");
 
                 ChemicalUsageReadingDTO sensorReading = new ChemicalUsageReadingDTO()
                 {
@@ -161,8 +157,6 @@ namespace WSMSimulator.HostedServices
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.Message);
-
                 return null;
             }
 
