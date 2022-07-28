@@ -1,6 +1,6 @@
-﻿namespace WSMSimulator.Models
+﻿namespace WSMSimulator.Settings
 {
-    public class MongoDBSettings
+    public class MongoDbSettings
     {
         public string? ConnectionString { get; set; }
         public string? DatabaseName { get; set; }

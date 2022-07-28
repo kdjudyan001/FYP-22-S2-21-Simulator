@@ -5,6 +5,7 @@ using MQTTnet;
 using MQTTnet.Client;
 using Newtonsoft.Json;
 using WSMSimulator.Models;
+using WSMSimulator.Settings;
 
 namespace WSMSimulator.HostedServices
 {
@@ -14,24 +15,26 @@ namespace WSMSimulator.HostedServices
 
         private readonly ILogger<WaterPumpUsageHostedService> _logger;
         private readonly IConfiguration _config;
+        private readonly IOptions<WaterPumpUsageSettings> _simulation;
         private readonly IMongoCollection<Equipment> _equipmentCollection;
         private readonly IMqttClient _mqttClient;
         private readonly GaussianRandom _random;
         private Timer? _timer = null;
         private MqttClientOptions _mqttClientOptions;
 
-        public WaterPumpUsageHostedService(ILogger<WaterPumpUsageHostedService> logger,
-            IConfiguration config, IOptions<MongoDBSettings> settings)
+        public WaterPumpUsageHostedService(ILogger<WaterPumpUsageHostedService> logger, IConfiguration config, 
+            IOptions<MongoDbSettings> dbSettings, IOptions<WaterPumpUsageSettings> simulation)
         {
             _logger = logger;
             _config = config;
+            _simulation = simulation;
 
             var mongoClient = new MongoClient(
-                settings.Value.ConnectionString);
+                dbSettings.Value.ConnectionString);
             var mongoDatabase = mongoClient.GetDatabase(
-                settings.Value.DatabaseName);
+                dbSettings.Value.DatabaseName);
             _equipmentCollection = mongoDatabase.GetCollection<Equipment>(
-                settings.Value.EquipmentCollection);
+                dbSettings.Value.EquipmentCollection);
 
             // RNG
             _random = new GaussianRandom();
@@ -55,11 +58,11 @@ namespace WSMSimulator.HostedServices
             // Start timer
             if (_timer == null)
             {
-                _timer = new Timer(Publish, null, TimeSpan.Zero, TimeSpan.FromMinutes(15));
+                _timer = new Timer(Publish, null, TimeSpan.FromMinutes(_simulation.Value.DueTime), TimeSpan.FromMinutes(_simulation.Value.Period));
             }
             else
             {
-                _timer?.Change(TimeSpan.Zero, TimeSpan.FromMinutes(15));
+                _timer?.Change(TimeSpan.FromMinutes(_simulation.Value.DueTime), TimeSpan.FromMinutes(_simulation.Value.Period));
             }
             return Task.CompletedTask;
         }
@@ -142,7 +145,7 @@ namespace WSMSimulator.HostedServices
                         Data = new SensorData()
                         {
                             Timestamp = DateTime.UtcNow,
-                            Value = _random.NextDouble(100, 50, 0, double.MaxValue)
+                            Value = _random.NextDouble(_simulation.Value.Mean, _simulation.Value.StdDev, _simulation.Value.Min, _simulation.Value.Max)
                         }
                     };
                     return sensorReading;
@@ -163,7 +166,7 @@ namespace WSMSimulator.HostedServices
         {
             // https://stackoverflow.com/questions/46616574/mongodb-random-results-in-c-sharp-linq
             var sample = await _equipmentCollection.AsQueryable()
-                .Where(doc => doc.Type == "Pump")
+                .Where(doc => doc.Type == "Pump" && doc.IsActive == true)
                 .Sample(1)
                 .FirstOrDefaultAsync();
             return sample is not null ? sample.EquipmentId : null;

@@ -1,12 +1,14 @@
 using WSMSimulator.HostedServices;
-using WSMSimulator.Models;
+using WSMSimulator.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.Configure<MongoDBSettings>(
-    builder.Configuration.GetSection("MongoDB"));
+builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDB"));
+builder.Services.Configure<WaterPumpUsageSettings>(builder.Configuration.GetSection("WaterPumpUsage"));
+builder.Services.Configure<WaterUsageSettings>(builder.Configuration.GetSection("WaterUsage"));
+builder.Services.Configure<ChemicalUsageSettings>(builder.Configuration.GetSection("ChemicalUsage"));
 
 // Hosted service
 builder.Services.AddHostedService<WaterPumpUsageHostedService>();
@@ -18,7 +20,7 @@ builder.Services.AddHostedService<ChemicalUsageHostedService>();
 //builder.Services.AddEndpointsApiExplorer();
 //builder.Services.AddSwaggerGen();
 
-builder.WebHost.UseUrls(builder.Configuration.GetValue<string>("Urls").Split(","));
+builder.WebHost.UseUrls(builder.Configuration.GetValue<string>("Urls").Split(";"));
 
 var app = builder.Build();
 

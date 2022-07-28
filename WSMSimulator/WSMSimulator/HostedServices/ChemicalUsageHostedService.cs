@@ -5,6 +5,7 @@ using MQTTnet;
 using MQTTnet.Client;
 using Newtonsoft.Json;
 using WSMSimulator.Models;
+using WSMSimulator.Settings;
 
 namespace WSMSimulator.HostedServices
 {
@@ -14,30 +15,32 @@ namespace WSMSimulator.HostedServices
 
         private readonly ILogger<ChemicalUsageHostedService> _logger;
         private readonly IConfiguration _config;
+        private readonly IOptions<ChemicalUsageSettings> _simulation;
         private readonly IMqttClient _mqttClient;
         private readonly MqttClientOptions _mqttClientOptions;
         private readonly IMongoCollection<Chemical> _chemicalCollection;
         private readonly IMongoCollection<Equipment> _equipmentCollection;
-        private readonly Random _random;
+        private readonly GaussianRandom _random;
         private Timer? _timer = null;
 
         public ChemicalUsageHostedService(ILogger<ChemicalUsageHostedService> logger, IConfiguration config,
-            IOptions<MongoDBSettings> settings)
+            IOptions<MongoDbSettings> dbSettings, IOptions<ChemicalUsageSettings> simulation)
         {
             _logger = logger;
             _config = config;
+            _simulation = simulation;
 
             var mongoClient = new MongoClient(
-                settings.Value.ConnectionString);
+                dbSettings.Value.ConnectionString);
             var mongoDatabase = mongoClient.GetDatabase(
-                settings.Value.DatabaseName);
+                dbSettings.Value.DatabaseName);
             _chemicalCollection = mongoDatabase.GetCollection<Chemical>(
-                settings.Value.ChemicalCollection);
+                dbSettings.Value.ChemicalCollection);
             _equipmentCollection = mongoDatabase.GetCollection<Equipment>(
-                settings.Value.EquipmentCollection);
+                dbSettings.Value.EquipmentCollection);
 
             // RNG
-            _random = new Random();
+            _random = new GaussianRandom();
 
             // Create MQTT client
             _mqttClient = new MqttFactory().CreateMqttClient();
@@ -66,11 +69,11 @@ namespace WSMSimulator.HostedServices
             // Start timer
             if (_timer == null)
             {
-                _timer = new Timer(Publish, null, TimeSpan.Zero, TimeSpan.FromMinutes(15));
+                _timer = new Timer(Publish, null, TimeSpan.FromMinutes(_simulation.Value.DueTime), TimeSpan.FromMinutes(_simulation.Value.Period));
             }
             else
             {
-                _timer?.Change(TimeSpan.Zero, TimeSpan.FromMinutes(15));
+                _timer?.Change(TimeSpan.FromMinutes(_simulation.Value.DueTime), TimeSpan.FromMinutes(_simulation.Value.Period));
             }
             return Task.CompletedTask;
         }
@@ -137,8 +140,17 @@ namespace WSMSimulator.HostedServices
                 if (chemical == null || equipment == null)
                     return null;
 
+                _logger.LogInformation($"{chemical.ChemicalId} - {chemical.Quantity}");
+
                 // Generate random sensor data
-                SensorData sensorData = GetRandomSensorData(0, Math.Min(5, chemical.Quantity));
+                SensorData sensorData = new SensorData()
+                {
+                    Timestamp = DateTime.UtcNow,
+                    Value = _random.NextDouble(_simulation.Value.Mean, _simulation.Value.StdDev, _simulation.Value.Min, chemical.Quantity)
+                };
+
+                _logger.LogInformation($"RANDOM SENSOR DATA {sensorData.Value}");
+
                 ChemicalUsageReadingDTO sensorReading = new ChemicalUsageReadingDTO()
                 {
                     ChemicalId = chemical.ChemicalId,
@@ -147,8 +159,10 @@ namespace WSMSimulator.HostedServices
                 };
                 return sensorReading;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex.Message);
+
                 return null;
             }
 
@@ -158,8 +172,10 @@ namespace WSMSimulator.HostedServices
         {
             // https://stackoverflow.com/questions/46616574/mongodb-random-results-in-c-sharp-linq
             var sample = await _chemicalCollection.AsQueryable()
+                .Where(x => x.Quantity > 0 && x.Quantity > _simulation.Value.Min)
                 .Sample(1)
                 .FirstOrDefaultAsync();
+
             return sample is not null ? sample : null;
         }
 
@@ -167,25 +183,10 @@ namespace WSMSimulator.HostedServices
         {
             // https://stackoverflow.com/questions/46616574/mongodb-random-results-in-c-sharp-linq
             var sample = await _equipmentCollection.AsQueryable()
-                .Where(x => x.Type == "Pump")
+                .Where(x => x.Type == "Pump" && x.IsActive == true)
                 .Sample(1)
                 .FirstOrDefaultAsync();
             return sample is not null ? sample : null;
-        }
-
-        public SensorData GetRandomSensorData(double minVal, double maxVal)
-        {
-            return new SensorData()
-            {
-                Timestamp = DateTime.UtcNow,
-                Value = GetRandomValue(minVal, maxVal)
-            };
-        }
-
-        public double GetRandomValue(double minVal, double maxVal)
-        {
-            double d = _random.NextDouble() * (maxVal - minVal) + minVal;
-            return d < 0 ? 0 : d;
         }
 
     }
